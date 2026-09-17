@@ -53,26 +53,78 @@ permanece puro e determinístico.
 - Projeto de time: outros membros contribuem. Relicenciar/privatizar depois
   exigiria consentimento de todos os contribuidores.
 
-## Topologia: questão em aberto (RNF-06)
+## Topologia: grafo em JSON (RNF-06)
 
-A topologia era materializada no Neo4j — um label por tipo de nó (`:Slot`,
-`:Waypoint`, `:Entrance`, `:Poi`), relacionamento `:VIA` com `weight` para as
-arestas, e `tenantId` em todo nó filtrado numa fronteira só
-(`SlotRepository.loadGraph(tenantId)`). Isso saiu do repositório junto com o
-adapter.
+A topologia de cada estacionamento vive em `topologias.grafo`, uma coluna JSON,
+**exatamente na forma que o Merlian aceita** em `POST /v1/recommendations`.
+Enviar para ele é `SELECT grafo`, sem transformar nada.
 
-O Merlian é **stateless**: recebe o grafo `{ nodes, edges }` na requisição e
-devolve recomendação ou rota. Ou seja, guardar a topologia continua sendo
-responsabilidade do AMPS, e hoje não há onde: o schema MySQL tem
-`estacionamentos` e `vagas`, mas nenhuma tabela de arestas, waypoints ou POIs.
+O contrato de wire do Merlian não usa os mesmos nomes do núcleo dele. O que a
+API aceita é `role`, não `kind`:
 
-Três coisas precisam de decisão antes do passo 6:
+| núcleo do Merlian / docs antigos | wire (o que vai no banco) |
+| --- | --- |
+| `slot` | `candidate` — é quem leva `dimensions` |
+| `poi` | `attractor` |
+| `entrance` | `source` |
+| `waypoint` | `transit` |
 
-- **Onde guardar nós e arestas.** Tabelas relacionais no MySQL, JSON numa coluna,
-  ou trazer de volta um banco de grafo.
-- **Isolamento multi-tenant (RNF-01, RN-02, RN-10).** Vivia no filtro por
-  `tenantId` do repositório Neo4j. O schema atual não tem coluna de tenant em
-  tabela nenhuma, então hoje não existe isolamento nessa camada.
+Tudo é `z.strictObject`: **qualquer chave a mais reprova a requisição inteira**.
+Por isso nada específico do AMPS entra no nó. Número, tipo, sensor, rotação e
+ocupação ficam em `vagas`, casados pelo `node.id`.
+
+### Unidades
+
+O grafo vai em **metros**. Não é escolha estética: o `sizeBias.ts` do Merlian tem
+`baselineWidth: 1.85` e `baselineLength: 4.5` hardcoded, então grafo em milímetros
+quebra o viés por tamanho da RN-14. `modelos` continua em milímetros inteiros —
+é dado de catálogo e a comparação da RN-13 é exata. A conversão acontece no
+adapter, ao montar `vehicle.dimensions`.
+
+### O que o banco garante, e o que não garante
+
+A integridade vem em duas camadas.
+
+**Forma** — a CHECK `grafo_no_formato_do_merlian` usa `JSON_SCHEMA_VALID`
+replicando o `strictObject`, `additionalProperties` incluso: um grafo que o
+Merlian recusaria na requisição **não entra no banco**. Verificado nos dois lados
+— o mesmo grafo com chave extra, com `role: 'slot'` ou com peso negativo é
+recusado pela CHECK e pelo zod do Merlian.
+
+**Integridade referencial dentro do documento** — JSON Schema não cruza elementos
+de array, então isso fica em triggers (`03_integridade.sql`), que barram:
+
+- aresta apontando para nó que não existe no grafo
+- dois nós com o mesmo id
+- `candidate` sem `dimensions`
+- `vagas.no_id` apontando para nó inexistente ou que não é `candidate`
+- update do grafo removendo nó que ainda tem vaga
+
+Com isso o JSON deixa de custar integridade em relação a tabelas relacionais de
+nós e arestas. O que ele custa de fato:
+
+- **Ordem de gravação**: a topologia tem que existir antes das vagas.
+- **Lógica fora do TypeScript**: os erros chegam como `SQLSTATE 45000` com
+  mensagem, e o adapter precisa traduzir para HTTP — como o `asConflict` já faz
+  para o `errno 1062`.
+- **Só testável por integração**, já que vive no banco.
+
+A validação da RN-11 (conectividade para publicar) continua sendo da aplicação —
+o `POST /v1/reachability` do Merlian devolve `unreachableSlotIds` e serve para isso.
+
+### Reconstrução do mapa
+
+`JSON_TABLE` desmonta o grafo em linhas, então o mapa do cliente sai de uma query
+comum, com `LEFT JOIN vagas` trazendo número, tipo, rotação e status por vaga.
+`rotacao_graus` existe porque o contrato do Merlian não tem orientação e sem ela
+não dá para desenhar a vaga inclinada.
+
+### Ainda em aberto
+
+- **Isolamento multi-tenant (RNF-01, RN-02, RN-10).** `estacionamentos.dono_id`
+  agora é FK para `donos`, o que sustenta a RN-10. Como o grafo é um documento por
+  estacionamento, não há como uma aresta cruzar pátios — mas isso vale porque o
+  documento é por linha, não porque o banco verifique.
 - **Como consumir o Merlian.** Ele não está publicado em registry e não expõe
   entry point de biblioteca (sem `main`, `exports` ou `types`; `express` é
   dependência de runtime). Ou o AMPS fala com ele por HTTP, ou o Merlian vira

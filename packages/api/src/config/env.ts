@@ -16,6 +16,7 @@ export interface MysqlConfig {
 
 export interface AuthConfig {
 	readonly jwtSecret: string;
+	readonly tokenTtl: string | undefined;
 }
 
 function port(key: string, fallback: number): number {
@@ -41,8 +42,10 @@ export function loadMysqlConfig(): MysqlConfig {
 }
 
 export function loadAuthConfig(): AuthConfig {
+	const ttl = process.env['AUTH_TOKEN_TTL'];
 	return {
 		jwtSecret: required('AUTH_JWT_SECRET'),
+		tokenTtl: ttl === undefined || ttl === '' ? undefined : ttl,
 	};
 }
 
@@ -53,8 +56,17 @@ export interface ServerConfig {
 
 export function loadServerConfig(): ServerConfig {
 	return {
-		port: port('PORT', 3000),
+		port: port('PORT', 3001),
 		corsOrigin: process.env['CORS_ORIGIN'] ?? 'http://localhost:5173',
 	};
 }
 
+export interface MerlianConfig {
+	readonly baseUrl: string;
+}
+
+export function loadMerlianConfig(): MerlianConfig {
+	return {
+		baseUrl: process.env['MERLIAN_URL'] ?? 'http://localhost:3000',
+	};
+}

@@ -1,4 +1,6 @@
-const BASE_URL = (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http://localhost:3000';
+import { authHeader } from './auth';
+
+const BASE_URL = (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http://localhost:3001';
 
 export interface UsuarioWire {
     readonly id: number;
@@ -40,6 +42,13 @@ async function pedir<T>(caminho: string, init: RequestInit = {}): Promise<T> {
     return corpo as T;
 }
 
+function pedirAutenticado<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+    return pedir<T>(caminho, {
+        ...init,
+        headers: { ...authHeader(), ...(init.headers ?? {}) },
+    });
+}
+
 export interface CadastroCliente {
     readonly nome: string;
     readonly email: string;
@@ -59,4 +68,71 @@ export function cadastrarCliente(dados: CadastroCliente): Promise<UsuarioWire> {
         method: 'POST',
         body: JSON.stringify(dados),
     });
+}
+
+export interface EnderecoWire {
+    readonly cep: string | null;
+    readonly logradouro: string | null;
+    readonly numero: string | null;
+    readonly bairro: string | null;
+    readonly complemento: string | null;
+    readonly cidade: string | null;
+    readonly estado: string | null;
+}
+
+export interface EstacionamentoWire {
+    readonly id: number;
+    readonly nome: string;
+    readonly publicado: boolean;
+    readonly endereco: EnderecoWire;
+}
+
+// Campo vazio é o mesmo que ausente para a API, que grava null.
+export interface DadosEstacionamento {
+    readonly nome: string;
+    readonly cep: string;
+    readonly logradouro: string;
+    readonly numero: string;
+    readonly bairro: string;
+    readonly complemento: string;
+    readonly cidade: string;
+    readonly estado: string;
+}
+
+export function listarEstacionamentos(): Promise<readonly EstacionamentoWire[]> {
+    return pedirAutenticado<readonly EstacionamentoWire[]>('/estacionamentos');
+}
+
+export function buscarEstacionamento(id: number): Promise<EstacionamentoWire> {
+    return pedirAutenticado<EstacionamentoWire>(`/estacionamentos/${id}`);
+}
+
+export function criarEstacionamento(dados: DadosEstacionamento): Promise<EstacionamentoWire> {
+    return pedirAutenticado<EstacionamentoWire>('/estacionamentos', {
+        method: 'POST',
+        body: JSON.stringify(dados),
+    });
+}
+
+export interface VagaWire {
+    readonly id: number;
+    readonly no_id: string;
+    readonly numero: string;
+    readonly tipo: string;
+    readonly rotacao_graus: number;
+    readonly sensor: string | null;
+    readonly status: string;
+    readonly carro_id: number | null;
+}
+
+// O grafo vem como está no banco, na forma que o Merlian aceita: a API não
+// transforma nada, e o front também não deve.
+export interface MapaWire {
+    readonly versao: number;
+    readonly grafo: unknown;
+    readonly vagas: readonly VagaWire[];
+}
+
+export function carregarMapa(estacionamentoId: number): Promise<MapaWire> {
+    return pedirAutenticado<MapaWire>(`/estacionamentos/${estacionamentoId}/mapa`);
 }

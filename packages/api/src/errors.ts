@@ -11,3 +11,24 @@ export class NotFoundError extends Error {
 		this.name = 'NotFoundError';
 	}
 }
+
+export class ForbiddenError extends Error {
+	constructor(readonly motivo: string) {
+		super(motivo);
+		this.name = 'ForbiddenError';
+	}
+}
+
+export class UnprocessableError extends Error {
+	constructor(readonly motivo: string) {
+		super(motivo);
+		this.name = 'UnprocessableError';
+	}
+}
+
+export class UnavailableError extends Error {
+	constructor(readonly servico: string) {
+		super(`${servico} indisponivel`);
+		this.name = 'UnavailableError';
+	}
+}

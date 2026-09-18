@@ -25,6 +25,10 @@ export interface Dono {
 	readonly cnpj: string;
 }
 
+export interface DonoRegistrado extends Dono {
+	readonly id: number;
+}
+
 export interface UsuarioComDono {
 	readonly usuario: Usuario;
 	readonly dono: Dono;
@@ -49,6 +53,78 @@ export interface NovoCarro {
 	readonly proprietario: string;
 }
 
+export interface Endereco {
+	readonly cep: string | null;
+	readonly logradouro: string | null;
+	readonly numero: string | null;
+	readonly bairro: string | null;
+	readonly complemento: string | null;
+	readonly cidade: string | null;
+	readonly estado: string | null;
+}
+
+export interface Estacionamento {
+	readonly id: number;
+	readonly donoId: number;
+	readonly nome: string;
+	readonly publicado: boolean;
+	readonly endereco: Endereco;
+}
+
+export interface NovoEstacionamento {
+	readonly donoId: number;
+	readonly nome: string;
+	readonly endereco: Endereco;
+}
+
+export interface Topologia {
+	readonly estacionamentoId: number;
+	readonly versao: number;
+}
+
+export interface TopologiaComGrafo extends Topologia {
+	readonly grafo: unknown;
+}
+
+export type TipoVaga = 'comum' | 'pcd' | 'idoso' | 'moto' | 'eletrico';
+
+export type StatusVaga = 'livre' | 'ocupada' | 'reservada';
+
+export interface Vaga {
+	readonly id: number;
+	readonly noId: string;
+	readonly numero: string;
+	readonly tipo: TipoVaga;
+	readonly rotacaoGraus: number;
+	readonly sensor: string | null;
+	readonly status: StatusVaga;
+	readonly carroId: number | null;
+}
+
+// O que o editor controla. status e carro_id sao da operação e não entram aqui.
+export interface VagaDoEditor {
+	readonly noId: string;
+	readonly numero: string;
+	readonly tipo: TipoVaga;
+	readonly rotacaoGraus: number;
+	readonly sensor: string | null;
+}
+
+export interface EntradaAlcancavel {
+	readonly entradaId: string;
+	readonly vagasAlcancaveis: readonly string[];
+}
+
+export interface Alcancabilidade {
+	readonly porEntrada: readonly EntradaAlcancavel[];
+	readonly vagasInalcancaveis: readonly string[];
+}
+
+// O motor de grafo vive no Merlian. Aqui é só a fronteira.
+export interface MotorDeGrafo {
+	alcancabilidade(grafo: unknown): Promise<Alcancabilidade>;
+}
+
 export interface UsuarioRepository {
 	create(novo: NovoUsuario): Promise<Usuario>;
 	findById(id: number): Promise<Usuario | null>;
@@ -57,6 +133,7 @@ export interface UsuarioRepository {
 
 export interface DonoRepository {
 	create(usuario: NovoUsuario, dono: Dono): Promise<UsuarioComDono>;
+	findByUsuarioId(usuarioId: number): Promise<DonoRegistrado | null>;
 }
 
 export interface ModeloRepository {
@@ -65,4 +142,23 @@ export interface ModeloRepository {
 
 export interface CarroRepository {
 	create(novo: NovoCarro): Promise<Carro>;
+}
+
+export interface EstacionamentoRepository {
+	create(novo: NovoEstacionamento): Promise<Estacionamento>;
+	listByDono(donoId: number): Promise<readonly Estacionamento[]>;
+	findById(id: number): Promise<Estacionamento | null>;
+	setPublicado(id: number, publicado: boolean): Promise<Estacionamento>;
+}
+
+export interface TopologiaRepository {
+	save(estacionamentoId: number, grafo: unknown): Promise<Topologia>;
+	findByEstacionamento(estacionamentoId: number): Promise<TopologiaComGrafo | null>;
+}
+
+export interface VagaRepository {
+	upsertAll(estacionamentoId: number, vagas: readonly VagaDoEditor[]): Promise<readonly Vaga[]>;
+	listByEstacionamento(estacionamentoId: number): Promise<readonly Vaga[]>;
+	findByNoId(estacionamentoId: number, noId: string): Promise<Vaga | null>;
+	deleteByNoId(estacionamentoId: number, noId: string): Promise<void>;
 }

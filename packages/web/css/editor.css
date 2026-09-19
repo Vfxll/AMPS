@@ -78,13 +78,70 @@ header {
 
 main {
     position: relative;
+    display: flex;
     flex: 1;
     min-height: 0;
 }
 
-.quadro {
+.ferramentas {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+    width: 54px;
+    padding: 8px 6px;
+    border-right: 1px solid var(--linha);
+}
+
+.ferramenta {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: none;
+    color: var(--apagado);
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.ferramenta:hover:not(:disabled) {
+    background-color: var(--search-bg);
+    color: var(--text-primary);
+}
+
+.ferramenta[aria-pressed="true"] {
+    border-color: var(--btn-green-border);
+    background-color: var(--btn-green-bg);
+    color: var(--text-primary);
+}
+
+.ferramenta:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+/* O atalho fica junto do ícone: é como se aprende a largar o mouse. */
+.atalho {
     position: absolute;
-    inset: 0;
+    right: 3px;
+    bottom: 1px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.58rem;
+}
+
+.separador {
+    height: 1px;
+    margin: 6px 4px;
+    background-color: var(--linha);
+}
+
+.quadro {
+    position: relative;
+    flex: 1;
+    min-width: 0;
 }
 
 /* O canvas é papel: fundo claro sob a interface escura, como a planta impressa. */
@@ -159,6 +216,184 @@ main {
     margin-left: auto;
 }
 
+
+/* Inspetor: canvas no meio, ferramentas à esquerda, campos à direita. */
+.inspetor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+    width: 216px;
+    padding: 12px;
+    overflow-y: auto;
+    border-left: 1px solid var(--linha);
+    font-size: 0.78rem;
+}
+
+.inspetor-vazio {
+    color: var(--apagado);
+    font-size: 0.78rem;
+}
+
+.inspetor-corpo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.inspetor-titulo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.inspetor-id {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.inspetor-posicao {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+    color: var(--apagado);
+    font-size: 0.72rem;
+}
+
+.campo {
+    margin-top: 4px;
+    color: var(--apagado);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.entrada {
+    width: 100%;
+    border: 1px solid var(--search-border);
+    border-radius: 8px;
+    padding: 6px 8px;
+    background-color: var(--search-bg);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.78rem;
+}
+
+.entrada:focus {
+    outline: none;
+    border-color: var(--btn-green-border);
+}
+
+/* O caso comum é perpendicular à rua; o campo cobre espinha de peixe a 45°. */
+.graus {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.grau {
+    flex: 1;
+    border: 1px solid var(--search-border);
+    border-radius: 8px;
+    padding: 4px 0;
+    background: none;
+    color: var(--apagado);
+    font-family: inherit;
+    font-size: 0.7rem;
+    cursor: pointer;
+}
+
+.grau:hover {
+    color: var(--text-primary);
+    background-color: var(--search-bg);
+}
+
+.botao-inspetor {
+    margin-top: 8px;
+    border: 1px solid var(--btn-green-border);
+    border-radius: var(--radius-pill);
+    padding: 6px 10px;
+    background-color: var(--btn-green-bg);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.inspetor-dica {
+    color: var(--apagado);
+    font-size: 0.7rem;
+}
+
+.inspetor-erro {
+    color: var(--status-full);
+    font-size: 0.72rem;
+}
+
+.seta {
+    color: var(--apagado);
+}
+
+.acoes {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.aviso {
+    font-size: 0.72rem;
+    color: var(--apagado);
+}
+
+.aviso-erro {
+    color: var(--status-full);
+}
+
+.botao-salvar {
+    border: 1px solid var(--btn-green-border);
+    border-radius: var(--radius-pill);
+    padding: 6px 16px;
+    background-color: var(--btn-green-bg);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.botao-salvar:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.botao-publicar {
+    border: 1px solid var(--linha);
+    border-radius: var(--radius-pill);
+    padding: 6px 16px;
+    background: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.botao-publicar:hover:not(:disabled) {
+    background-color: var(--search-bg);
+}
+
+.botao-publicar:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* Utilitária por último de propósito: `.disabled` tem a mesma especificidade
+   de qualquer classe de componente, então só vence quem vier depois. Declarada
+   no meio do arquivo, ela perdia para o `display: flex` do inspetor e o painel
+   da aresta aparecia junto com o do nó. */
 .disabled {
     display: none;
 }

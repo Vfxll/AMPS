@@ -19,6 +19,10 @@ export type TipoDeTecla = 'rawKeyDown' | 'keyUp';
 export type TipoDeMouse = 'mousePressed' | 'mouseReleased' | 'mouseMoved';
 export type Botao = 'none' | 'left' | 'middle' | 'right';
 
+// Bitmask do CDP para as teclas mortas; é assim que Ctrl+Z chega como atalho e
+// não como um "z" solto.
+export const CTRL = 2;
+
 export interface OpcoesDoMouse {
     readonly botao?: Botao;
     readonly cliques?: number;
@@ -29,7 +33,14 @@ export interface Navegador {
     ir(url: string, espera?: number): Promise<void>;
     js<T>(expressao: string): Promise<T>;
     texto(seletor: string): Promise<string>;
-    tecla(tipo: TipoDeTecla, codigo: string, chave: string, virtual: number): Promise<void>;
+    tecla(
+        tipo: TipoDeTecla,
+        codigo: string,
+        chave: string,
+        virtual: number,
+        modificadores?: number,
+    ): Promise<void>;
+    digitar(texto: string): Promise<void>;
     mouse(tipo: TipoDeMouse, x: number, y: number, opcoes?: OpcoesDoMouse): Promise<void>;
     roda(x: number, y: number, dx: number, dy: number, comCtrl?: boolean): Promise<void>;
     foto(caminho: string): Promise<void>;
@@ -117,14 +128,29 @@ export async function abrirNavegador(): Promise<Navegador> {
                 `document.querySelector(${JSON.stringify(seletor)})?.textContent ?? ''`,
             )) ?? '';
         },
-        async tecla(tipo, codigo, chave, virtual) {
+        async tecla(tipo, codigo, chave, virtual, modificadores = 0) {
             await comando('Input.dispatchKeyEvent', {
                 type: tipo,
                 code: codigo,
                 key: chave,
                 windowsVirtualKeyCode: virtual,
                 nativeVirtualKeyCode: virtual,
+                modifiers: modificadores,
             });
+        },
+        // Uma tecla por caractere, não `Input.insertText`: o insertText muda o
+        // valor e dispara `input`, mas não marca o campo como editado pela
+        // pessoa, e aí o `change` nunca sai — nem no Enter, nem ao perder o
+        // foco. Quem escuta `change` não veria nada.
+        async digitar(texto) {
+            for (const caractere of texto) {
+                await comando('Input.dispatchKeyEvent', {
+                    type: 'char',
+                    text: caractere,
+                    key: caractere,
+                    unmodifiedText: caractere,
+                });
+            }
         },
         async mouse(tipo, x, y, opcoes = {}) {
             await comando('Input.dispatchMouseEvent', {

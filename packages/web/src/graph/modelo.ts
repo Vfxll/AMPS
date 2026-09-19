@@ -1,6 +1,6 @@
-import { projecaoNoSegmento } from './geometria';
+import { distancia, projecaoNoSegmento } from './geometria';
 import type { Caixa, Ponto } from './geometria';
-import type { Aresta, DadosDaVaga, Grafo, No } from './tipos';
+import type { Aresta, DadosDaVaga, Dimensoes, Grafo, No, Papel } from './tipos';
 
 export function acharNo(grafo: Grafo, id: string): No | null {
     return grafo.nodes.find((no) => no.id === id) ?? null;
@@ -93,4 +93,225 @@ export function anguloDeDesenho(
 ): number {
     if (dados !== undefined) return (dados.rotacaoGraus * Math.PI) / 180;
     return anguloDaVaga(grafo, vaga) ?? 0;
+}
+
+// Tamanho da vaga nova, em metros. O Merlian tem 1,85 × 4,5 como baseline do
+// viés por tamanho da RN-14; aqui vale a vaga desenhada de verdade no pátio.
+export const VAGA_PADRAO: Dimensoes = { width: 2.5, length: 5 };
+
+const PREFIXO: Record<Papel, string> = {
+    candidate: 's',
+    source: 'e',
+    transit: 't',
+    attractor: 'p',
+};
+
+// Id de nó é imutável e é o que `vagas.no_id` persegue: repetir um id órfã a
+// vaga do outro e o trigger recusa. Conta a partir do maior sufixo em uso e
+// ainda confere contra o conjunto, porque pátio semeado usa `v001` e `r1_2`.
+export function proximoId(grafo: Grafo, papel: Papel): string {
+    const prefixo = PREFIXO[papel];
+    const usados = new Set(grafo.nodes.map((no) => no.id));
+
+    let proximo = 1;
+    for (const no of grafo.nodes) {
+        if (!no.id.startsWith(prefixo)) continue;
+        const sufixo = Number(no.id.slice(prefixo.length));
+        if (Number.isInteger(sufixo) && sufixo >= proximo) proximo = sufixo + 1;
+    }
+    while (usados.has(`${prefixo}${proximo}`)) proximo += 1;
+    return `${prefixo}${proximo}`;
+}
+
+function novoNo(id: string, papel: Papel, posicao: Ponto): No {
+    switch (papel) {
+        case 'candidate':
+            return { id, role: 'candidate', position: posicao, dimensions: VAGA_PADRAO };
+        case 'source':
+            return { id, role: 'source', position: posicao };
+        case 'transit':
+            return { id, role: 'transit', position: posicao };
+        case 'attractor':
+            return { id, role: 'attractor', position: posicao };
+    }
+}
+
+export interface Criacao {
+    readonly grafo: Grafo;
+    readonly no: No;
+}
+
+export function criarNo(grafo: Grafo, papel: Papel, posicao: Ponto): Criacao {
+    const no = novoNo(proximoId(grafo, papel), papel, posicao);
+    return { grafo: { nodes: [...grafo.nodes, no], edges: grafo.edges }, no };
+}
+
+// Mover não mexe no peso das arestas. O peso nasce da distância, mas o
+// `strictObject` do Merlian não deixa guardar "este peso foi editado à mão", e
+// recalcular apagaria em silêncio um ajuste deliberado — rampa, mão única.
+// Recálculo é ação explícita.
+export function moverNo(grafo: Grafo, id: string, posicao: Ponto): Grafo {
+    return {
+        nodes: grafo.nodes.map((no) => (no.id === id ? { ...no, position: posicao } : no)),
+        edges: grafo.edges,
+    };
+}
+
+// As arestas que tocavam o nó vão junto: aresta apontando para nó que não
+// existe é exatamente o que o trigger recusa com 422.
+export function removerNo(grafo: Grafo, id: string): Grafo {
+    return {
+        nodes: grafo.nodes.filter((no) => no.id !== id),
+        edges: grafo.edges.filter((aresta) => aresta.from !== id && aresta.to !== id),
+    };
+}
+
+// O que vai para `vagas.rotacao_graus` na criação. Depois disso quem manda é a
+// coluna, não a geometria.
+export function rotacaoDaVaga(grafo: Grafo, vaga: No): number {
+    const angulo = anguloDaVaga(grafo, vaga);
+    if (angulo === null) return 0;
+    const graus = Math.round((angulo * 180) / Math.PI);
+    return ((graus % 360) + 360) % 360;
+}
+
+// `vagas` tem UNIQUE em (estacionamento_id, numero): o número nasce no primeiro
+// inteiro livre para não colidir com o que já está gravado.
+export function proximoNumeroDeVaga(vagas: readonly DadosDaVaga[]): string {
+    const usados = new Set(vagas.map((vaga) => vaga.numero));
+    let proximo = vagas.length + 1;
+    while (usados.has(String(proximo))) proximo += 1;
+    return String(proximo);
+}
+
+// Uma casa decimal, em metros. A regra mora aqui porque criar aresta e
+// recalcular peso têm que arredondar igual — em dois lugares elas divergem.
+function pesoEntre(a: No, b: No): number {
+    return Number(distancia(a.position, b.position).toFixed(1));
+}
+
+// Uma ponta que é vaga faz o acesso: entra na vaga e não sai de lá. Entre
+// pontos de via e entrada a rua nasce de mão dupla, que é o que um pátio de
+// verdade tem — e é o que o desenho mostra com 6,4 m em vez de 3,2 m.
+export function maoDuplaEntre(de: No, para: No): boolean {
+    return de.role !== 'candidate' && para.role !== 'candidate';
+}
+
+export function temAresta(grafo: Grafo, de: string, para: string): boolean {
+    return grafo.edges.some((aresta) => aresta.from === de && aresta.to === para);
+}
+
+// O peso nasce da distância euclidiana e só muda na mão depois disso. Devolve o
+// grafo recebido quando não há o que criar, para o chamador saber que não houve
+// mudança sem comparar estrutura.
+export function criarAresta(grafo: Grafo, deId: string, paraId: string): Grafo {
+    const escolhido = acharNo(grafo, deId);
+    const outro = acharNo(grafo, paraId);
+    if (escolhido === null || outro === null || deId === paraId) return grafo;
+
+    // O acesso entra na vaga e não sai, venha o clique de onde vier. Sem isto,
+    // clicar na vaga antes da rua cria uma vaga de onde se sai e onde não se
+    // entra — e o Merlian a considera inalcançável, com razão.
+    const inverter = escolhido.role === 'candidate' && outro.role !== 'candidate';
+    const de = inverter ? outro : escolhido;
+    const para = inverter ? escolhido : outro;
+
+    const peso = pesoEntre(de, para);
+    const novas: Aresta[] = [];
+
+    if (!temAresta(grafo, de.id, para.id)) {
+        novas.push({ from: de.id, to: para.id, weight: peso });
+    }
+    if (maoDuplaEntre(de, para) && !temAresta(grafo, para.id, de.id)) {
+        novas.push({ from: para.id, to: de.id, weight: peso });
+    }
+    if (novas.length === 0) return grafo;
+
+    return { nodes: grafo.nodes, edges: [...grafo.edges, ...novas] };
+}
+
+// Tira um sentido só: apagar a ida de uma mão dupla deixa a rua de mão única,
+// que é como se transforma uma coisa na outra.
+export function removerAresta(grafo: Grafo, de: string, para: string): Grafo {
+    return {
+        nodes: grafo.nodes,
+        edges: grafo.edges.filter((aresta) => !(aresta.from === de && aresta.to === para)),
+    };
+}
+
+// O peso que a aresta teria se nascesse agora. Serve para criar e para o
+// recálculo explícito do inspetor — nunca é aplicado sozinho.
+export function pesoNatural(grafo: Grafo, de: string, para: string): number | null {
+    const origem = acharNo(grafo, de);
+    const destino = acharNo(grafo, para);
+    return origem === null || destino === null ? null : pesoEntre(origem, destino);
+}
+
+export function mudarPeso(grafo: Grafo, de: string, para: string, peso: number): Grafo {
+    return {
+        nodes: grafo.nodes,
+        edges: grafo.edges.map((aresta) => (
+            aresta.from === de && aresta.to === para ? { ...aresta, weight: peso } : aresta
+        )),
+    };
+}
+
+// O que se renomeia é o `label`, cosmético e ecoado pelo Merlian; o `id` é
+// imutável porque `vagas.no_id` casa com ele. Rótulo vazio tira a chave em vez
+// de gravar string vazia: o `strictObject` do Merlian não ganha nada com uma
+// chave sem conteúdo.
+export function renomearNo(grafo: Grafo, id: string, rotulo: string): Grafo {
+    const limpo = rotulo.trim();
+    return {
+        nodes: grafo.nodes.map((no) => {
+            if (no.id !== id) return no;
+            if (limpo !== '') return { ...no, label: limpo };
+
+            const { label: _descartado, ...semRotulo } = no;
+            return semRotulo as No;
+        }),
+        edges: grafo.edges,
+    };
+}
+
+// Comparação estrutural, não textual. O MySQL reordena as chaves do JSON ao
+// guardar — `edges` antes de `nodes`, `to` antes de `from` — e comparar string
+// daria "não salvo" para sempre. A ordem dos arrays também não conta: o que
+// importa é o conjunto.
+function mesmoNo(a: No, b: No): boolean {
+    if (a.role !== b.role) return false;
+    if (a.position.x !== b.position.x || a.position.y !== b.position.y) return false;
+    if ((a.label ?? '') !== (b.label ?? '')) return false;
+
+    if (a.role === 'candidate' && b.role === 'candidate') {
+        return a.dimensions.width === b.dimensions.width
+            && a.dimensions.length === b.dimensions.length;
+    }
+    return true;
+}
+
+export function mesmoGrafo(a: Grafo, b: Grafo): boolean {
+    if (a.nodes.length !== b.nodes.length || a.edges.length !== b.edges.length) return false;
+
+    const nos = new Map(b.nodes.map((no) => [no.id, no]));
+    for (const no of a.nodes) {
+        const outro = nos.get(no.id);
+        if (outro === undefined || !mesmoNo(no, outro)) return false;
+    }
+
+    const pesos = new Map(b.edges.map((aresta) => [chaveDaAresta(aresta), aresta.weight]));
+    for (const aresta of a.edges) {
+        if (pesos.get(chaveDaAresta(aresta)) !== aresta.weight) return false;
+    }
+    return true;
+}
+
+// Campo a campo, o sensor incluído: o `PUT /vagas` é upsert da linha inteira,
+// então uma diferença que passe despercebida vira dado perdido no banco.
+export function mesmaVaga(a: DadosDaVaga, b: DadosDaVaga): boolean {
+    return a.noId === b.noId
+        && a.numero === b.numero
+        && a.tipo === b.tipo
+        && a.rotacaoGraus === b.rotacaoGraus
+        && a.sensor === b.sensor;
 }

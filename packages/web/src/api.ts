@@ -15,7 +15,14 @@ export interface LoginResposta {
 }
 
 export class ApiError extends Error {
-    constructor(readonly status: number, mensagem: string) {
+    // `vagas` vem junto no 422 da publicação, nomeando as que não têm caminho.
+    // É estruturado de propósito: interpretar a mensagem em português para
+    // descobrir quais realçar quebraria ao primeiro ajuste de texto.
+    constructor(
+        readonly status: number,
+        mensagem: string,
+        readonly vagas: readonly string[] = [],
+    ) {
         super(mensagem);
         this.name = 'ApiError';
     }
@@ -36,8 +43,12 @@ async function pedir<T>(caminho: string, init: RequestInit = {}): Promise<T> {
     const corpo: unknown = await resposta.json().catch(() => null);
 
     if (!resposta.ok) {
-        const erro = (corpo as { erro?: string } | null)?.erro;
-        throw new ApiError(resposta.status, erro ?? `Erro ${resposta.status}.`);
+        const falha = corpo as { erro?: string; vagas?: readonly string[] } | null;
+        throw new ApiError(
+            resposta.status,
+            falha?.erro ?? `Erro ${resposta.status}.`,
+            Array.isArray(falha?.vagas) ? falha.vagas : [],
+        );
     }
     return corpo as T;
 }
@@ -135,4 +146,61 @@ export interface MapaWire {
 
 export function carregarMapa(estacionamentoId: number): Promise<MapaWire> {
     return pedirAutenticado<MapaWire>(`/estacionamentos/${estacionamentoId}/mapa`);
+}
+
+// O corpo do PUT de topologia **é** o grafo, na mesma forma que vai para o
+// Merlian: nada de envelope.
+export interface TopologiaResposta {
+    readonly estacionamento_id: number;
+    readonly versao: number;
+}
+
+export function gravarTopologia(
+    estacionamentoId: number,
+    grafo: unknown,
+): Promise<TopologiaResposta> {
+    return pedirAutenticado<TopologiaResposta>(`/estacionamentos/${estacionamentoId}/topologia`, {
+        method: 'PUT',
+        body: JSON.stringify(grafo),
+    });
+}
+
+export interface VagaParaGravar {
+    readonly no_id: string;
+    readonly numero: string;
+    readonly tipo: string;
+    readonly rotacao_graus: number;
+    readonly sensor: string | null;
+}
+
+export function gravarVagas(
+    estacionamentoId: number,
+    vagas: readonly VagaParaGravar[],
+): Promise<readonly VagaWire[]> {
+    return pedirAutenticado<readonly VagaWire[]>(`/estacionamentos/${estacionamentoId}/vagas`, {
+        method: 'PUT',
+        body: JSON.stringify(vagas),
+    });
+}
+
+// 204 sem corpo; o 422 vem quando a vaga não está livre. O `no_id` é escapado
+// porque nada garante que ele seja seguro numa URL: os que o editor gera são,
+// mas pátio importado traz o id que quiser.
+export function apagarVaga(estacionamentoId: number, noId: string): Promise<null> {
+    const caminho = `/estacionamentos/${estacionamentoId}/vagas/${encodeURIComponent(noId)}`;
+    return pedirAutenticado<null>(caminho, { method: 'DELETE' });
+}
+
+// A RN-11 inteira é conferida na API: entrada, vaga e POI ali, alcançabilidade
+// no Merlian. O front só mostra o que voltou.
+export function publicar(estacionamentoId: number): Promise<EstacionamentoWire> {
+    return pedirAutenticado<EstacionamentoWire>(`/estacionamentos/${estacionamentoId}/publicacao`, {
+        method: 'POST',
+    });
+}
+
+export function despublicar(estacionamentoId: number): Promise<EstacionamentoWire> {
+    return pedirAutenticado<EstacionamentoWire>(`/estacionamentos/${estacionamentoId}/publicacao`, {
+        method: 'DELETE',
+    });
 }

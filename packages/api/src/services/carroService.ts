@@ -25,4 +25,13 @@ export class CarroService {
 			proprietario: usuario.nome,
 		});
 	}
+
+	async listar(usuarioId: number): Promise<readonly Carro[]> {
+		const usuario = await this.usuarios.findById(usuarioId);
+		if (usuario === null) {
+			throw new NotFoundError('usuario');
+		}
+
+		return this.carros.listByProprietario(usuario.nome);
+	}
 }

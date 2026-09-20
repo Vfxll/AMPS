@@ -1,10 +1,24 @@
-import type { Pool, ResultSetHeader } from 'mysql2/promise';
+import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Carro, CarroRepository, NovoCarro } from '../../ports.js';
 import { asConflict } from './duplicate.js';
+
+interface CarroRow extends RowDataPacket {
+    id: number;
+    placa: string;
+    modelo_id: number;
+    proprietario: string;
+}
 
 const INSERT = `
 INSERT INTO carros (placa, proprietario, modelo_id)
 VALUES (?, ?, ?)
+`;
+
+const SELECT_BY_PROPRIETARIO = `
+SELECT id, placa, modelo_id, proprietario
+FROM carros
+WHERE proprietario = ?
+ORDER BY id
 `;
 
 export class MysqlCarroRepository implements CarroRepository {
@@ -26,5 +40,19 @@ export class MysqlCarroRepository implements CarroRepository {
 		} catch (error) {
 			throw asConflict(error);
 		}
+	}
+
+	async listByProprietario(proprietario: string): Promise<readonly Carro[]> {
+		const [rows] = await this.pool.execute<CarroRow[]>(
+			SELECT_BY_PROPRIETARIO,
+			[proprietario],
+		);
+
+		return rows.map((row) => ({
+			id: row.id,
+			placa: row.placa,
+			modeloId: row.modelo_id,
+			proprietario: row.proprietario,
+		}));
 	}
 }

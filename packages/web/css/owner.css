@@ -155,7 +155,8 @@ main {
     color: var(--apagado);
 }
 
-.campo input {
+.campo input,
+.campo select {
     border: 1px solid var(--search-border);
     border-radius: 8px;
     background-color: var(--search-bg);
@@ -166,7 +167,8 @@ main {
     outline: none;
 }
 
-.campo input:focus {
+.campo input:focus,
+.campo select:focus {
     border-color: var(--btn-green-border);
 }
 

@@ -15,7 +15,7 @@ defendia e não se anunciava.
 
 ## A decisão num lugar só
 
-`src/sessao.ts`:
+`src/auth/sessao.ts`:
 
 ```ts
 export function areasDe(tipo: string | null): readonly Area[]
@@ -34,7 +34,7 @@ export function destinosDe(tipo: string | null): readonly Destino[]
 precise de teste unitário no front tem que viver fora do DOM — `sessao.test.ts`
 cobre a tabela inteira sem abrir navegador.
 
-`script.ts` monta a sidebar e o botão do meio da barra de baixo a partir dessa
+`dom/navegacao.ts` monta a sidebar e o botão do meio da barra de baixo a partir dessa
 lista, em `renderNavegacao()`, chamada por `renderAccountPanel()`. Ou seja: a
 navegação se refaz a cada login e logout, sem recarregar a página. Os itens
 fixos ("Configurações", "Sobre", "Contato") continuam no HTML, abaixo dos
@@ -45,16 +45,16 @@ página e o 403 da API. O menu é conveniência — e há um teste em
 `sessao.test.ts` que garante que `meusPatios` nunca aparece para quem não é
 dono, que é a versão testável dessa promessa.
 
-Os `href` de `DESTINOS` são relativos à raiz do site. Só `index.html` e
-`search.html` montam este menu, e ambas estão na raiz. Uma página em
-subdiretório que queira o mesmo menu vai precisar de um prefixo.
+Os `href` de `DESTINOS` são absolutos (`/index.html`, `/client/carro.html`).
+O menu é montado no `index.html`, na raiz, e no `client/search.html`: um
+caminho relativo apontaria para um lugar diferente em cada uma.
 
 ## O cadastro de dono
 
 `POST /donos` existia desde o começo e ninguém chamava. O painel de conta ganhou
 uma quinta vista — `registerOwner`, em `#accountRegisterOwner` — com os dois
 campos a mais, razão social e CNPJ, alcançada pelo link "Sou um estacionamento".
-`src/cadastro_dono.ts` espelha o `cadastro_cliente.ts`: mesmo `mostrarMensagem`,
+`src/pages/cadastroDono.ts` espelha o `cadastroCliente.ts`: mesmo `mostrarMensagem`,
 mesmo `limparFormularioDepois`, mesmo tratamento de 409.
 
 Depois do cadastro e do login o dono **fica no `index.html`** e chega ao hub

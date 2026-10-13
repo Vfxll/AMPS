@@ -265,7 +265,7 @@ Duas coisas importantes sobre o `POST /carros`:
 
 - **Autenticada** quer dizer que precisa do cabeçalho
   `Authorization: Bearer <token>`. Você não vai montar isso na mão: o
-  `src/api.ts` já tem uma função que faz isso sozinha (Passo 3).
+  `src/api/http.ts` já tem uma função que faz isso sozinha (Passo 3).
 - **`proprietario` não vai no corpo.** A API pega o nome do dono do token. Veja
   `packages/api/src/services/carroService.ts` — são 15 linhas, vale ler.
 
@@ -309,8 +309,8 @@ seguinte sem conferir o anterior.
 
 ## Passo 1 — A página HTML
 
-Crie `packages/web/carro.html`, **na raiz de `packages/web`** (mesmo nível do
-`index.html`, não dentro de `src/`).
+Crie `packages/web/client/carro.html`, **em `client/`**, ao lado da
+`search.html` (as páginas do dono ficam em `owner/`, nunca dentro de `src/`).
 
 Copie a estrutura de `owner/estacionamentos.html` e adapte. Ela tem duas seções
 irmãs que você precisa manter:
@@ -321,10 +321,11 @@ irmãs que você precisa manter:
 Os campos do formulário são só dois: a placa (`<input>`) e o modelo
 (`<select>`, que você vai preencher pela API — deixe vazio no HTML).
 
-Atenção aos caminhos: `estacionamentos.html` está em `owner/`, então referencia
-`../css/...`. A sua página está na raiz, então é `css/...`, sem o `../`.
+Atenção aos caminhos: `estacionamentos.html` está em `owner/` e referencia
+`../css/...`. A sua página está em `client/`, um nível abaixo também, então vale o
+mesmo `../`.
 
-**Confira:** abra <http://localhost:5173/carro.html>. Tem que aparecer alguma
+**Confira:** abra <http://localhost:5173/client/carro.html>. Tem que aparecer alguma
 coisa, ainda sem comportamento nenhum.
 
 ## Passo 2 — Registrar a página no Vite
@@ -341,8 +342,8 @@ listagem do final.
 
 ## Passo 3 — As funções da API no front
 
-Abra `packages/web/src/api.ts`. Você vai acrescentar três coisas, seguindo o
-padrão que já está lá:
+Crie `packages/web/src/api/carros.ts` e reexporte-o em `src/api/index.ts`, como
+os outros recursos. Nele vão três coisas, seguindo o padrão dos vizinhos:
 
 1. Um tipo `ModeloWire` com `id`, `marca` e `nome`.
 2. Uma função `listarModelos()` que chama `GET /modelos`. Use `pedir` — a rota
@@ -350,8 +351,9 @@ padrão que já está lá:
 3. Um tipo `CarroWire` e uma função `cadastrarCarro()` para `POST /carros`. Use
    **`pedirAutenticado`** — é ela que põe o `Authorization` sozinha.
 
-Repare em `cadastrarCliente` e `criarEstacionamento` logo acima: são o mesmo
-formato. Os campos do tipo vão em `snake_case` (`modelo_id`), porque refletem o
+Repare em `cadastrarCliente` (`conta.ts`) e `criarEstacionamento`
+(`estacionamentos.ts`): são o mesmo formato. `pedir` e `pedirAutenticado` vêm
+de `./http`. Os campos do tipo vão em `snake_case` (`modelo_id`), porque refletem o
 JSON.
 
 ## Passo 4 — A lógica da página
@@ -374,7 +376,7 @@ cada, com `value` = id e o texto `marca nome`.
 console do navegador (F12) — a mensagem de erro está lá.
 
 **4c. O cadastro.** No `submit` do formulário, leia a placa e o modelo
-escolhido e chame `cadastrarCarro()`. Use `mostrarMensagem` de `src/ui.ts` para
+escolhido e chame `cadastrarCarro()`. Use `mostrarMensagem` de `src/dom/ui.ts` para
 o retorno, como as outras páginas fazem.
 
 Cuidado: `select.value` é **string**. A API quer `modelo_id` número. Converta
@@ -462,7 +464,7 @@ com o código velho — e o sintoma é a sua rota nova dando 404.
 
 ## Passo 6 — Ligar a listagem
 
-Volte ao front. Acrescente `listarCarros()` em `src/api.ts` (com
+Volte ao front. Acrescente `listarCarros()` em `src/api/carros.ts` (com
 `pedirAutenticado`) e chame-a de `src/pages/carro.ts`, no carregamento da
 página e depois de cada cadastro.
 
@@ -487,7 +489,7 @@ Para o que você escreveu:
 
 - **Se houver função pura** — cruzar carro com modelo, formatar placa —, ela
   merece um `.test.ts` ao lado, sem DOM. O repositório não tem jsdom, então
-  teste de unidade no front só serve para lógica pura. `src/sessao.test.ts` é
+  teste de unidade no front só serve para lógica pura. `src/auth/sessao.test.ts` é
   um exemplo curto.
 - **O adapter novo** tem um `.integration.test.ts` ao lado dos outros em
   `adapters/mysql/`. Veja `mysqlCarroRepository.integration.test.ts`.

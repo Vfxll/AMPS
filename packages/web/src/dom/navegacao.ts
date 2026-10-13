@@ -1,6 +1,6 @@
-import { getSession, clearSession } from './auth';
-import { destinosDe } from './sessao';
-import type { Destino } from './sessao';
+import { getSession, clearSession } from '../auth';
+import { destinosDe } from '../auth/sessao';
+import type { Destino } from '../auth/sessao';
 
 export const menuButton = document.getElementById('menu-button') as HTMLButtonElement | null;
 export const closeSidebarButton = document.getElementById('close-sidebar-button') as HTMLButtonElement | null;
@@ -27,7 +27,7 @@ const bottomAreaIcon = document.getElementById('navAreaIcone') as HTMLElement | 
 const bottomAreaLabel = document.getElementById('navAreaRotulo') as HTMLElement | null;
 const logoutButton = document.getElementById('logoutBtn') as HTMLButtonElement | null;
 
-let destinoDaBarra = 'index.html';
+let destinoDaBarra = '/index.html';
 
 export type AccountView = 'login' | 'loggedIn' | 'forgot' | 'registerClient' | 'registerOwner';
 
@@ -109,7 +109,7 @@ function toggleAccountContent(): void {
 bottomAccountButton?.addEventListener('click', toggleAccountContent);
 
 bottomHomeButton?.addEventListener('click', () => {
-    window.location.href = 'index.html';
+    window.location.href = '/index.html';
 });
 
 bottomAreaButton?.addEventListener('click', () => {

@@ -8,7 +8,7 @@ import {
     type ModeloWire,
 } from '../api';
 import { clearSession, getSession, usuarioAtual } from '../auth';
-import { limparMensagem, mostrarMensagem } from '../ui';
+import { limparMensagem, mostrarMensagem } from '../dom/ui';
 
 const bloqueio = document.querySelector<HTMLElement>('#bloqueio');
 const bloqueioTexto = document.querySelector<HTMLElement>('#bloqueioTexto');
@@ -193,7 +193,7 @@ formNovo?.addEventListener('submit', async (event) => {
 
 sair?.addEventListener('click', () => {
     clearSession();
-    window.location.href = 'index.html';
+    window.location.href = '../index.html';
 });
 
 const usuario = usuarioAtual();
